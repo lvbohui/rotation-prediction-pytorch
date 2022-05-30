@@ -16,9 +16,6 @@ numpy==1.21.1
 oauthlib==3.1.1
 opencv-python==4.5.3.56
 Pillow==8.3.1
-polyaxon-client==0.6.1
-polyaxon-schemas==0.6.1
-polystores==0.2.5
 protobuf==3.17.3
 psutil==5.8.0
 pyasn1==0.4.8
@@ -39,7 +36,7 @@ tensorboard==2.5.0
 tensorboard-data-server==0.6.1
 tensorboard-plugin-wit==1.8.0
 threadpoolctl==2.2.0
-torch==1.9.0
+torch==1.11.0
 torchvision==0.10.0
 tqdm==4.61.2
 typing-extensions==3.10.0.0

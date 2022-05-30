@@ -64,14 +64,14 @@ def parse_args():
         type=str,
         help="path to checkpoint from which to resume training",
     )
-    parser.add_argument("--epochs", default=100, type=int, help="number of epochs")
+    parser.add_argument("--epochs", default=5, type=int, help="number of epochs")
     parser.add_argument(
         "--iters-per-epoch",
         default=1024,
         type=int,
         help="number of iterations per epoch",
     )
-    parser.add_argument("--batch-size", default=128, type=int, help="batch_size")
+    parser.add_argument("--batch-size", default=64, type=int, help="batch_size")
     parser.add_argument("--lr", default=0.1, type=float, help="initial learning rate")
     parser.add_argument("--wd", default=0.0005, type=float, help="weight decay")
     parser.add_argument(
@@ -134,13 +134,6 @@ def parse_args():
         action="store_true",
         default=False,
         help="if specified seed is randomly set",
-    )
-    parser.add_argument(
-        "--polyaxon",
-        dest="polyaxon",
-        action="store_true",
-        default=False,
-        help="Flag indicating if training is run on polyaxon or not",
     )
     parser.add_argument(
         "--pbar",
