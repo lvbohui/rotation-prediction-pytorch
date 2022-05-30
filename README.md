@@ -5,12 +5,8 @@ PyTorch implementation of [Unsupervised Representation Learning by Predicting Im
 based on the [official implementation](https://github.com/gidariss/FeatureLearningRotNet).
 
 The implementation supports the following datasets:
-- CIFAR-10 / CIFAR-100
-- SVHN
-- Caltech101 / Caltech256
-- STL10
-- HAM10000
-- ImageNet
+- CIFAR-10
+- component data (private)
 
 
 ## Installation
@@ -26,7 +22,7 @@ conda install --file requirements.txt
 ## Training
 RotNet training is started by running the following command (`--pbar` to show progress bar during training):
 ```
-python main.py --pbar
+python component.py --pbar
 ```
 All commandline arguments, which can be used to adapt the configuration of the RotNet training are defined and described in `arguments.py`.
 By default the following configuration is run:
@@ -48,11 +44,6 @@ In addition to these, the following arguments can be used to further configure t
   are loaded and training is resumed with specified arguments.
 * see `arguments.py` for more
 
-Alternatively, the `polyaxon.yaml`-file can be used to start the RotNet training on a polyaxon-cluster:
-```
-polyaxon run -f polyaxon.yaml -u
-```
-For a general introduction to polyaxon and its commandline client, please refer to the [official documentation](https://github.com/polyaxon/polyaxon)
 ## Monitoring
 The training progress (loss, accuracy, etc.) can be monitored using tensorboard as follows:
 ```
