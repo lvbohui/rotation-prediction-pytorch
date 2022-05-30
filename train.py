@@ -276,7 +276,7 @@ def train_step(args, model, batch, meters):
     """
     inputs, targets = batch
 
-    inputs = inputs.to(args.device)
+    inputs = inputs.to(args.device).float()
     targets = targets.to(args.device)
 
     logits = model(inputs)

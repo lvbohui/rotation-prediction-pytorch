@@ -1,4 +1,5 @@
 import argparse
+from cgi import test
 import logging
 from tqdm import tqdm
 from typing import Tuple
@@ -8,15 +9,20 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
+from distutils.version import LooseVersion
 from utils.metrics import *
 from utils.train import rotate_tensors, ModelWrapper, NINWrapper
 from utils.eval import AverageMeterSet
 from datasets.custom_datasets import CustomSubset
+from datasets.component_dataset import ComponentDataset
 from models.network_in_network import NetworkInNetwork
 
+import cv2
+import numpy as np
 
 logger = logging.getLogger()
 
+print(torch.cuda.is_available())
 
 def evaluate(
         args,
@@ -49,15 +55,22 @@ def evaluate(
     meters = AverageMeterSet()
 
     model.eval()
+    
+    if args.device == 'cuda':
+        model.cuda()
+    else:
+        model.cpu()
+
 
     if args.pbar:
         p_bar = tqdm(range(len(eval_loader)))
 
     with torch.no_grad():
-        for i, (inputs, _) in enumerate(eval_loader):
-            inputs, rot_targets = rotate_tensors(inputs)
+        for i, (inputs, _) in enumerate(eval_loader):   
 
-            inputs = inputs.to(args.device)
+            inputs, rot_targets = rotate_tensors(inputs) # rotation and connect image
+
+            inputs = inputs.to(args.device).float()
             rot_targets = rot_targets.to(args.device)
 
             # Output
@@ -87,67 +100,13 @@ def evaluate(
     return meters["loss"].avg, meters["top1"].avg
 
 
-def extract_layers(
-        args,
-        dataset: CustomSubset,
-        model: nn.Module,
-        embedding_layer: str = "conv2",
-        prediction_layer: str = "classifier",
-        descriptor: str = "Embedding extraction"
-):
-    dataset.return_index = True
-    loader = DataLoader(dataset, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=False)
-
-    logger.info("Extracting {} and {} layers of pretrained RotNet model.".format(embedding_layer, prediction_layer))
-    if isinstance(model, NetworkInNetwork):
-        wrapped_model = NINWrapper(model, to_extract=[embedding_layer, prediction_layer])
-    else:
-        wrapped_model = ModelWrapper(model, (embedding_layer, prediction_layer))
-
-    wrapped_model.eval()
-
-    if args.pbar:
-        p_bar = tqdm(range(len(loader)))
-
-    index_list = []
-    embedding_list = []
-    prediction_list = []
-    with torch.no_grad():
-        for i, (samples, _, indices) in enumerate(loader):
-            samples = samples.to(args.device)
-
-            # Output
-            embeddings, logits = wrapped_model(samples)
-
-            index_list.append(indices)
-            embedding_list.append(embeddings)
-            prediction_list.append(torch.softmax(logits, dim=1))
-
-            if args.pbar:
-                p_bar.set_description(
-                    "{descriptor}: Iter: {batch:4}/{iter:4}".format(
-                        descriptor=descriptor, batch=i + 1, iter=len(loader)
-                    )
-                )
-                p_bar.update()
-    if args.pbar:
-        p_bar.close()
-
-    pretraining_save_dict = {
-        "indices": torch.cat(index_list),
-        "embeddings": torch.cat(embedding_list),
-        "predictions": torch.cat(prediction_list),
-    }
-    return pretraining_save_dict
-
-
 def parse_args():
     parser = argparse.ArgumentParser(description='RotNet evaluation')
 
     parser.add_argument('--run-path', type=str, help='path to RotNet run which should be evaluated.')
     parser.add_argument('--data-dir', default='./data', type=str, help='path to directory where datasets are saved.')
     parser.add_argument('--checkpoint-file', default='', type=str, help='name of .tar-checkpoint file from which model is loaded for evaluation.')
-    parser.add_argument('--device', default='cpu', type=str, choices=['cpu', 'gpu'], help='device (cpu / cuda) on which evaluation is run.')
+    parser.add_argument('--device', default='cuda', type=str, choices=['cpu', 'cuda'], help='device (cpu / cuda) on which evaluation is run.')
     parser.add_argument('--pbar', action='store_true', default=False, help='flag indicating whether or not to show progress bar for evaluation.')
     return parser.parse_args()
 
@@ -165,14 +124,18 @@ if __name__ == '__main__':
     # Load arguments of run to evaluate
     run_args = load_args(args.run_path)
 
-    # Initialize test dataset and loader
-    _, test_set = get_base_sets(run_args.dataset, args.data_dir, test_transform=get_normalizer(run_args.dataset))
-    test_loader = DataLoader(
-        test_set,
-        batch_size=run_args.batch_size,
-        num_workers=run_args.num_workers,
-        shuffle=False,
-        pin_memory=run_args.pin_memory,
+
+    test_dir = "data/sink/valid/up"
+    test_set = ComponentDataset(test_dir)
+    print("Number of test samples:{}".format(len(test_set)))
+
+    # Get loaders for the labeled and unlabeled train set as well as the validation and test set
+    args.iters_per_epoch = 10 # (len(train_set) // args.batch_size) + 1
+    test_loader = DataLoader(test_set,
+                             batch_size=run_args.batch_size,
+                             num_workers=run_args.num_workers,
+                             shuffle=False,
+                             pin_memory=run_args.pin_memory,
     )
 
     # Load trained model from specified checkpoint .tar-file containing model state dict

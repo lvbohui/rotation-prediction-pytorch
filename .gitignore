@@ -148,3 +148,4 @@ data/
 
 *.tar
 events.*
+out/*
