@@ -12,8 +12,8 @@ class ComponentDataset(Dataset):
         self.images = glob.glob(path + '/*.jpg')
         self.category_name2id = {"up": 0, "down": 1, "left": 2, "right": 3}
         
-        category_name = self.path.split('/')[-1] # folder name
-        self.category_id = self.category_name2id[category_name]
+        # category_name = self.path.split('/')[-1] # folder name
+        self.category_id = 0
 
         self.data = []
         for image_path in self.images:
