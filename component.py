@@ -29,15 +29,15 @@ def main(args, save_path: str):
     transform_dict = get_transform_dict(args)
 
     # Get torch dataset objects from specified dataset
-    train_dir = "data/sink/train/up"
-    valid_dir = "data/sink/train/up"
-    test_dir = "data/sink/valid/up"
+    train_dir = "data/component/train"
+    valid_dir = "data/component/valid"
+    test_dir = "data/component/valid"
     train_set = ComponentDataset(train_dir, transform=transform_dict["train"])
     validation_set = ComponentDataset(valid_dir, transform=transform_dict["test"])
     test_set = ComponentDataset(test_dir, transform=transform_dict["test"])
 
     # Get loaders for the labeled and unlabeled train set as well as the validation and test set
-    args.iters_per_epoch = 10 # (len(train_set) // args.batch_size) + 1
+    args.iters_per_epoch = 2 # (len(train_set) // args.batch_size) + 1
     train_loader, validation_loader, test_loader = create_loaders(
         args,
         train_set,
@@ -52,6 +52,7 @@ def main(args, save_path: str):
     logger.info("\t- Train set: {}".format(len(train_set)))
     logger.info("\t- Validation set: {}".format(len(validation_set)))
     logger.info("\t- Test set: {}".format(len(test_set)))
+    logger.info("\t- Train dir: {}".format(train_dir))
 
     logger.info("-------- MODEL --------")
     args.num_classes = 4
