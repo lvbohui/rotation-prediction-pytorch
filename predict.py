@@ -1,89 +1,88 @@
 import argparse
-import logging
-
-import torch
-from torch.utils.data import DataLoader
-
-from distutils.version import LooseVersion
-from utils.metrics import *
-from utils.train import rotate_tensors
-from datasets.component_dataset import ComponentDataset
+import json
+from types import SimpleNamespace
+import time
 
 import cv2
 import numpy as np
-
-import os
-from utils.misc import load_args, load_state
+import torch
 from models.model_factory import MODEL_GETTERS
 
-logger = logging.getLogger()
 
-def parse_args():
-    parser = argparse.ArgumentParser(description='RotNet evaluation')
-
-    parser.add_argument('--run-path', type=str, required=True, help='path to RotNet run which should be evaluated.')
-    parser.add_argument('--data-dir', default='./data', type=str, help='path to directory where datasets are saved.')
-    parser.add_argument('--checkpoint-file', default='', type=str, help='name of .tar-checkpoint file from which model is loaded for evaluation.')
-    parser.add_argument('--device', default='cuda', type=str, choices=['cpu', 'cuda'], help='device (cpu / cuda) on which evaluation is run.')
-    parser.add_argument('--pbar', action='store_true', default=False, help='flag indicating whether or not to show progress bar for evaluation.')
-    return parser.parse_args()
+def rotate_tensors(batch):
+    rotated_samples = torch.cat(
+        [
+            batch,
+            batch.transpose(2, 3).flip(2),
+            batch.flip(2).flip(3),
+            batch.transpose(2, 3).flip(3),
+        ]
+    )
+    return rotated_samples
 
 
 class DefaultPredictor(object):
-    def __init__(self, model):
-        self.model = model.eval()
-        self.model.cuda()
+    def __init__(self, cfg):
+        self.cfg = cfg
+        time1 = time.time()
+        # Load trained model from specified checkpoint .tar-file containing model state dict
+        self.model = MODEL_GETTERS[self.cfg.model](num_classes=self.cfg.num_classes)
+
+        checkpoint_file = self.cfg.checkpoint_file
+        saved_state = torch.load(checkpoint_file, map_location=self.cfg.device)
+        self.model.load_state_dict(saved_state['model_state_dict'])
+
+        self.model.eval()
+        self.model.to(self.cfg.device)
+        print("Load model time:{}".format(time.time()-time1))
+        self.image_dim = (32, 32)
+        self.index2name = {
+                            0: "up",
+                            1: "left",
+                            2: "down",
+                            3: "right"
+        }
 
     def __call__(self, image):
-        image, _ = rotate_tensors(image)
+        image = cv2.resize(image, self.image_dim)
 
-        image.to("cuda")
-        output = self.model(image)
-        return output
+        image_tensor = torch.from_numpy(image)
+        image_tensor = image_tensor.permute(2, 0, 1) # Adjust [H, W, C] to [C, H, W]
+        image_tensor = image_tensor.unsqueeze(0) # Add batch dimension, [B, C, H, W]
+
+        time2 = time.time()
+        image = rotate_tensors(image_tensor) # Rotate and connect image_tensor
+        image = image.to(self.cfg.device).float() # Convert to cuda and float
+        print("Rotation time:{}".format(time.time()-time2))
+
+        time3 = time.time()
+        output = self.model(image) # Predict
+        print("Prediction time:{}".format(time.time()-time3))
+        predict_result = output.detach().cpu().numpy()
+        predict_name = self.index2name[np.argmax(predict_result[0])]
+
+        return predict_name
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='RotNet prediction')
+
+    parser.add_argument('--config-file', type=str, required=True, 
+                        help='path to RotNet config file.')
+    parser.add_argument('--image-dir', type=str, required=True,
+                        help='path to image to predict.')
+    return parser.parse_args()
+
 
 if __name__ == "__main__":
     args = parse_args()
-    args.device = torch.device(args.device)
 
-    # Load arguments of run to evaluate
-    run_args = load_args(args.run_path)
+    # Load arguments of run to predict
+    run_args = SimpleNamespace(**json.load(open(args.config_file)))
 
-    # Load trained model from specified checkpoint .tar-file containing model state dict
-    model = MODEL_GETTERS[run_args.model](num_classes=run_args.num_classes)
+    # Get prediction image
+    image = cv2.imread(args.image_dir)
 
-    if args.checkpoint_file:
-        saved_state = load_state(os.path.join(args.run_path, args.checkpoint_file), map_location=args.device)
-    else:
-        checkpoint_file = next(filter(lambda x: x.endswith('.tar'), sorted(os.listdir(args.run_path), reverse=True)))
-        saved_state = load_state(os.path.join(args.run_path, checkpoint_file), map_location=args.device)
-
-    model.load_state_dict(saved_state['model_state_dict'])
-
-    model.eval()
-    model.cuda()
-    # Set index to category name
-    index2name = {
-        0: "up",
-        1: "left",
-        2: "down",
-        3: "right"
-    }
-
-    # Load dataset
-    test_image_dir = "../Image-classification/data/sink/valid/left"
-    test_set = ComponentDataset(test_image_dir, transform=None)
-    test_loader = DataLoader(test_set, batch_size=1, shuffle=False, num_workers=1)
-
-    with torch.no_grad():
-        for i, (image, label) in enumerate(test_loader):
-            # image = image.to(args.device)
-            
-            image, rot_targets = rotate_tensors(image) # rotation and connect image
-            image = image.to(args.device).float()
-
-            # Output
-            output = model(image)
-
-            predict_result = output[0].cpu().numpy()
-            predict_name = index2name[np.argmax(predict_result)]
-            print(predict_name)
+    predictor = DefaultPredictor(run_args)
+    predict_name = predictor(image)
+    print(predict_name)
