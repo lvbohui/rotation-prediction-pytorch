@@ -64,7 +64,7 @@ def parse_args():
         type=str,
         help="path to checkpoint from which to resume training",
     )
-    parser.add_argument("--epochs", default=5, type=int, help="number of epochs")
+    parser.add_argument("--epochs", default=50, type=int, help="number of epochs")
     parser.add_argument(
         "--iters-per-epoch",
         default=1024,
