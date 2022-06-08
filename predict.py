@@ -21,7 +21,7 @@ def rotate_tensors(batch):
     return rotated_samples
 
 
-class DefaultPredictor(object):
+class RotationPredictor(object):
     def __init__(self, cfg):
         self.cfg = cfg
         time1 = time.time()
@@ -71,6 +71,8 @@ def parse_args():
                         help='path to RotNet config file.')
     parser.add_argument('--image-dir', type=str, required=True,
                         help='path to image to predict.')
+    parser.add_argument('--checkpoint-file', type=str, default="out/rotnet_training/component/last_model.tar",
+                        help='path to checkpoint file.')
     return parser.parse_args()
 
 
@@ -79,10 +81,11 @@ if __name__ == "__main__":
 
     # Load arguments of run to predict
     run_args = SimpleNamespace(**json.load(open(args.config_file)))
+    run_args.checkpoint_file = args.checkpoint_file
 
     # Get prediction image
     image = cv2.imread(args.image_dir)
-
-    predictor = DefaultPredictor(run_args)
+    
+    predictor = RotationPredictor(run_args)
     predict_name = predictor(image)
     print(predict_name)
